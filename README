@@ -7,3 +7,6 @@ for more info on rrdtool check out:
   http://oss.oetiker.ch/rrdtool/
 
 for more info on this, the erlrrd module see the doc directory.
+
+Tested most frequently with R14B, older versions of erlang may or may not work
+correctly.

@@ -5,14 +5,14 @@
 -export([start/2, stop/1]).
 
 
-start() -> 
+start() ->
   application:start(erlrrd).
 
-start(_Type, _Args) -> 
+start(_Type, _Args) ->
   erlrrd_sup:start_link().
 
-stop() -> 
+stop() ->
   application:stop(erlrrd).
 
-stop(_State) -> 
-  ok. 
+stop(_State) ->
+  ok.
