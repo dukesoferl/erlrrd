@@ -20,16 +20,16 @@ start_link(RRDToolCmd) ->
 %%   Result = {ok,Pid} | ignore | {error,Error}
 %%     Pid = pid()
 %%     Error = {already_started,Pid} | shutdown | term()
-start_link() -> 
+start_link() ->
   supervisor:start_link(erlrrd_sup, []).
 
-init(_) -> 
-  { 
-    ok, 
-    { 
+init(_) ->
+  {
+    ok,
+    {
       {one_for_one, 5, 10 },
-      [ 
-        { 
+      [
+        {
           erlrrd,
           { erlrrd, start_link, [] },
           permanent,

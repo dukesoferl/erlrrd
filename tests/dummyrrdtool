@@ -10,7 +10,7 @@ do
        sleep 1
        echo "ERROR: timed out"
       ;;
-    die) 
+    die)
       echo "OK u:0.01 s:0.02 r:0.03"
       exit 1
       ;;

@@ -13,12 +13,12 @@
 
 -behaviour(gen_server).
 -export([init/1, handle_call/3, handle_cast/2, handle_info/2,
-	 terminate/2, code_change/3]).
+         terminate/2, code_change/3]).
 
 -record( state2, { port, timeout }  ).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%% Public 
+%% Public
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
@@ -40,15 +40,15 @@ start_link(RRDToolCmd) when is_list(RRDToolCmd) ->
   start_link().
 
 %% @equiv start_link("rrdtool -")
-start_link() -> 
+start_link() ->
   gen_server:start_link({local, ?MODULE}, ?MODULE, [], []).
 
 %% @spec combine(List) -> List
 %%   List = [ term() ]
-%% @doc "joins" and quotes the given arg list. 
-%%   takes a list of arguments, and returns a deeplist with 
+%% @doc "joins" and quotes the given arg list.
+%%   takes a list of arguments, and returns a deeplist with
 %%   each argument surrounded by double quotes
-%%   then separated by spaces. Note 
+%%   then separated by spaces. Note
 %%   it does not try to escape any double quotes
 %%   in the arguments.
 %%
@@ -56,13 +56,13 @@ start_link() ->
 %%
 %%   [["\"","these","\""]," ",["\"","are","\""]," ",["\"","my args","\""]]
 %%
-%%   it is intended as a convinence function to the 
+%%   it is intended as a convinence function to the
 %%   rrdtool commands which all take a single iodata() argument
-%%   which represents the string to be passed as the arguments 
-%%   to the corresponding rrdtool command.  
+%%   which represents the string to be passed as the arguments
+%%   to the corresponding rrdtool command.
 %%
 %%   erlrrd:xport(erlrrd:c(["DEF:foo=/path with/space/foo.rrd:foo:AVERAGE", "XPORT:foo"])).
-combine(Args) -> 
+combine(Args) ->
     join([ [ "\"", X, "\"" ] || X <- Args ], " ").
 %% @spec c(List) -> List
 %%   List = [ term() ]
@@ -72,119 +72,119 @@ c(Args) -> combine(Args).
 
 % rrdtool commands
 
-%% @spec create(erlang:iodata()) -> { ok, Response }  |  
-%%   { error, Reason } 
+%% @spec create(erlang:iodata()) -> { ok, Response }  |
+%%   { error, Reason }
 %%  Reason = iolist()
 %%  Response = iolist()
-%% @doc Set up a new Round Robin Database (RRD). Check 
+%% @doc Set up a new Round Robin Database (RRD). Check
 %% [http://oss.oetiker.ch/rrdtool/doc/rrdcreate.en.html rrdcreate].
 create     (Args) when is_list(Args) -> do(create,     Args).
 
-%% @spec update(erlang:iodata()) -> { ok, Response }  |  
-%%   { error, Reason } 
+%% @spec update(erlang:iodata()) -> { ok, Response }  |
+%%   { error, Reason }
 %%  Reason = iolist()
 %%  Response = iolist()
-%% @doc Store new data values into an RRD. Check 
+%% @doc Store new data values into an RRD. Check
 %% [http://oss.oetiker.ch/rrdtool/doc/rrdupdate.en.html rrdupdate].
 update     (Args) when is_list(Args) -> do(update,     Args).
 
-%% @spec updatev(erlang:iodata()) -> { ok, Response }  |  
-%%   { error, Reason } 
+%% @spec updatev(erlang:iodata()) -> { ok, Response }  |
+%%   { error, Reason }
 %%  Reason = iolist()
 %%  Response = iolist()
-%% @doc Operationally equivalent to update except for output. Check 
+%% @doc Operationally equivalent to update except for output. Check
 %% [http://oss.oetiker.ch/rrdtool/doc/rrdupdate.en.html rrdupdate].
 updatev    (Args) when is_list(Args) -> do(updatev,    Args).
 
-%% @spec dump(erlang:iodata()) -> { ok, Response }  |  
-%%   { error, Reason } 
+%% @spec dump(erlang:iodata()) -> { ok, Response }  |
+%%   { error, Reason }
 %%  Reason = iolist()
 %%  Response = iolist()
 %% @doc    Dump the contents of an RRD in plain ASCII. In connection with
 %%         restore you can use this to move an RRD from one computer
-%%         architecture to another.  Check 
+%%         architecture to another.  Check
 %% [http://oss.oetiker.ch/rrdtool/doc/rrddump.en.html rrddump].
 dump       (Args) when is_list(Args) -> do(dump,       Args).
 
-%% @spec restore(erlang:iodata()) -> { ok, Response }  |  
-%%   { error, Reason } 
+%% @spec restore(erlang:iodata()) -> { ok, Response }  |
+%%   { error, Reason }
 %%  Reason = iolist()
 %%  Response = iolist()
-%% @doc Restore an RRD in XML format to a binary RRD. Check 
+%% @doc Restore an RRD in XML format to a binary RRD. Check
 %% [http://oss.oetiker.ch/rrdtool/doc/rrdrestore.en.html rrdrestore]
 restore    (Args) when is_list(Args) -> do(restore,    Args).
 
-%% @spec last(erlang:iodata()) -> { ok, Response }  |  
-%%   { error, Reason } 
+%% @spec last(erlang:iodata()) -> { ok, Response }  |
+%%   { error, Reason }
 %%  Reason = iolist()
 %%  Response = integer()
-%% @doc    Return the date of the last data sample in an RRD. Check 
+%% @doc    Return the date of the last data sample in an RRD. Check
 %% [http://oss.oetiker.ch/rrdtool/doc/rrdlast.en.html rrdlast]
-last       (Args) when is_list(Args) -> 
+last       (Args) when is_list(Args) ->
   case do(last,       Args) of
     { error, Reason } -> { error, Reason };
     { ok, [[Response]] } -> { ok, erlang:list_to_integer(Response) }
   end.
 
-%% @spec lastupdate(erlang:iodata()) -> { ok, Response }  |  
-%%   { error, Reason } 
+%% @spec lastupdate(erlang:iodata()) -> { ok, Response }  |
+%%   { error, Reason }
 %%  Reason = iolist()
 %%  Response = iolist()
-%% @doc    Return the most recent update to an RRD. Check 
+%% @doc    Return the most recent update to an RRD. Check
 %% [http://oss.oetiker.ch/rrdtool/doc/rrdlastupdate.en.html rrdlastupdate]
 lastupdate (Args) when is_list(Args) -> do(lastupdate, Args).
 
-%% @spec first(erlang:iodata()) -> { ok, Response }  |  
-%%   { error, Reason } 
+%% @spec first(erlang:iodata()) -> { ok, Response }  |
+%%   { error, Reason }
 %%  Reason = iolist()
 %%  Response = integer()
 %% @doc Return the date of the first data sample in an RRA within an
-%%       RRD. Check 
+%%       RRD. Check
 %% [http://oss.oetiker.ch/rrdtool/doc/rrdfirst.en.html rrdfirst]
-first       (Args) when is_list(Args) -> 
+first       (Args) when is_list(Args) ->
   case do(first,       Args) of
     { error, Reason } -> { error, Reason };
     { ok, [[Response]] } -> { ok, erlang:list_to_integer(Response) }
   end.
 
-%% @spec info(erlang:iodata()) -> { ok, Response }  |  
-%%   { error, Reason } 
+%% @spec info(erlang:iodata()) -> { ok, Response }  |
+%%   { error, Reason }
 %%  Reason = iolist()
 %%  Response = iolist()
-%% @doc Get information about an RRD. Check 
+%% @doc Get information about an RRD. Check
 %% [http://oss.oetiker.ch/rrdtool/doc/rrdinfo.en.html rrdinfo].
 info       (Args) when is_list(Args) -> do(info,       Args).
 
-%% @spec fetch(erlang:iodata()) -> { ok, Response }  |  
-%%   { error, Reason } 
+%% @spec fetch(erlang:iodata()) -> { ok, Response }  |
+%%   { error, Reason }
 %%  Reason = iolist()
 %%  Response = iolist()
 %% @doc   Get data for a certain time period from a RRD. The graph func-
-%%         tion uses fetch to retrieve its data from an RRD. Check 
+%%         tion uses fetch to retrieve its data from an RRD. Check
 %% [http://oss.oetiker.ch/rrdtool/doc/rrdfetch.en.html rrdfetch].
 fetch      (Args) when is_list(Args) -> do(fetch,      Args).
 
-%% @spec tune(erlang:iodata()) -> { ok, Response }  |  
-%%   { error, Reason } 
+%% @spec tune(erlang:iodata()) -> { ok, Response }  |
+%%   { error, Reason }
 %%  Reason = iolist()
 %%  Response = iolist()
-%% @doc Alter setup of an RRD. Check 
+%% @doc Alter setup of an RRD. Check
 %% [http://oss.oetiker.ch/rrdtool/doc/rrdtune.en.html rrdtune].
 tune       (Args) when is_list(Args) -> do(tune,       Args).
 
-%% @spec resize(erlang:iodata()) -> { ok, Response }  |  
-%%   { error, Reason } 
+%% @spec resize(erlang:iodata()) -> { ok, Response }  |
+%%   { error, Reason }
 %%  Reason = iolist()
 %%  Response = iolist()
 %% @doc    Change the size of individual RRAs. This is dangerous! Check
 %%         rrdresize.
 resize     (Args) when is_list(Args) -> do(resize,     Args).
 
-%% @spec xport(erlang:iodata()) -> { ok, Response }  |  
-%%   { error, Reason } 
+%% @spec xport(erlang:iodata()) -> { ok, Response }  |
+%%   { error, Reason }
 %%  Reason = iolist()
 %%  Response = iolist()
-%% @doc   Export data retrieved from one or several RRDs. Check 
+%% @doc   Export data retrieved from one or several RRDs. Check
 %% [http://oss.oetiker.ch/rrdtool/doc/rrdxport.en.html rrdxport]
 %%
 %%  erlrrd:xport("'DEF:foo=/path with/space/foo.rrd:foo:AVERAGE' XPORT:foo").
@@ -192,62 +192,62 @@ resize     (Args) when is_list(Args) -> do(resize,     Args).
 %%  erlrrd:xport(erlrrd:c(["DEF:foo=/path with/space/foo.rrd:foo:AVERAGE", "XPORT:foo"])).
 xport      (Args) when is_list(Args) -> do(xport,      Args).
 
-%% @spec graph(erlang:iodata()) -> { ok, Response }  |  
-%%   { error, Reason } 
+%% @spec graph(erlang:iodata()) -> { ok, Response }  |
+%%   { error, Reason }
 %%  Reason = iolist()
 %%  Response = iolist()
 %% @doc   Create a graph from data stored in one or several RRDs. Apart
 %%         from generating graphs, data can also be extracted to stdout.
-%%         Check 
+%%         Check
 %% [http://oss.oetiker.ch/rrdtool/doc/rrdgraph.en.html rrdgraph].
-graph      (Args) when is_list(Args) -> 
-  % TODO: scan for this pattern w/out flattening the io_list? 
-  % TODO: support  graphing to stdout!!! :) 
+graph      (Args) when is_list(Args) ->
+  % TODO: scan for this pattern w/out flattening the io_list?
+  % TODO: support  graphing to stdout!!! :)
   Flat = erlang:binary_to_list(erlang:iolist_to_binary(Args)),
-  case regexp:match(Flat, "(^| )-( |$)") of
-    { match, _, _ } -> 
+  case re:run (Flat, "(^| )-( |$)") of
+    { match, _ } ->
       % graph to stdout will break this Ports parsing of reponses..
       { error, "Graphing to stdout not supported." };
-    nomatch -> 
+    nomatch ->
       do(graph, Args)
   end.
 
 %%%%% rrd "remote" commands %%%%
 
-%% @spec cd(erlang:iodata()) -> ok |  
-%%   { error, Reason } 
+%% @spec cd(erlang:iodata()) -> ok |
+%%   { error, Reason }
 %%  Reason = iolist()
 %% @doc   ask the rrdtool unix process to change directories
-%% 
+%%
 %%    erlrrd:cd("/usr/share/rrd/data").
 %%
 %%    erlrrd:cd(erlrrd:combine(["/Users/foo/Library/Application Support/myapp/rrd"]).
-cd         (Arg)  when is_list(Arg) -> 
+cd         (Arg)  when is_list(Arg) ->
   case do(cd,         Arg) of
     { error, Reason } -> { error, Reason };
     { ok, _ } -> ok
   end.
 
-%% @spec mkdir(erlang:iodata()) -> { ok, Response }  |  
-%%   { error, Reason } 
+%% @spec mkdir(erlang:iodata()) -> { ok, Response }  |
+%%   { error, Reason }
 %%  Reason = iolist()
 %%  Response = iolist()
 %% @doc   ask the rrdtool unix process to create a directory
 mkdir      (Arg)  when is_list(Arg) -> do(mkdir,      Arg).
 
-%% @spec ls() -> { ok, Response }  | { error, Reason } 
+%% @spec ls() -> { ok, Response }  | { error, Reason }
 %%  Reason = iolist()
 %%  Response = iolist()
 %% @doc  lists all *.rrd files in rrdtool unix process'
 %%       current working directory
 ls         ()     -> do(ls,         []  ).
 
-%% @spec pwd() -> { ok, Response }  |  { error, Reason } 
+%% @spec pwd() -> { ok, Response }  |  { error, Reason }
 %%  Reason = iolist()
 %%  Response = string()
 %% @doc  return the rrdtool unix process'
 %%       current working directory.
-pwd        ()     -> 
+pwd        ()     ->
   case do(pwd,       []) of
     { error, Reason } -> { error, Reason };
     { ok, [[Response]] } -> { ok, Response }
@@ -258,7 +258,7 @@ pwd        ()     ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% @hidden
-init([]) -> 
+init([]) ->
   RRDToolCmd = case application:get_env(erlrrd, rrdtoolcmd) of
     { ok, Cmd } ->  Cmd;
     undefined -> "rrdtool -"
@@ -270,44 +270,44 @@ init([]) ->
   process_flag(trap_exit, true),
   Port = erlang:open_port(
     {spawn, RRDToolCmd},
-    [ {line, 10000}, eof, exit_status, stream ] 
+    [ {line, 10000}, eof, exit_status, stream ]
   ),
   {ok, #state2{port = Port, timeout = Timeout}}.
 
 %% handle_call
 %% @hidden
 handle_call(
-  {do, Action, Args }, 
-  _From, 
+  {do, Action, Args },
+  _From,
   #state2{port = Port, timeout = Timeout } = State
   ) ->
     Line = [ erlang:atom_to_list(Action), " ", Args , "\n"],
     port_command(Port, Line),
     case collect_response(Port, Timeout) of
-          {response, Response} -> 
+          {response, Response} ->
               {reply, { ok, Response }, State};
           { error, timeout } ->
               {stop, port_timeout, State};
-          { error, Error } -> 
+          { error, Error } ->
               {reply, { error, Error  }, State}
     end.
 
 %% handle_cast
 %% @hidden
-handle_cast(_Msg, State) -> 
+handle_cast(_Msg, State) ->
   % io:format(user, "Got unexpected cast msg: ~p~n", [Msg]),
   %% TODO error/event loging in erlang style.
   {noreply, State}.
 
 %% handle_info
 %% @hidden
-handle_info({ Port , {exit_status, Status}}, State) 
-  when 
+handle_info({ Port , {exit_status, Status}}, State)
+  when
     Port =:= State#state2.port
-  -> 
+  ->
   { stop, { port_exit, Status }, State};
 
-handle_info(_Msg, State) -> 
+handle_info(_Msg, State) ->
   % io:format(user, "Got unexpected info msg: ~p~n", [Msg]),
   %% TODO error/event loging in erlang style.
   {noreply, State}.
@@ -318,17 +318,17 @@ terminate(_Reason, _State) -> ok.
 
 %% code_change
 %% @hidden
-code_change(_OldVsn, State, _Extra) -> 
+code_change(_OldVsn, State, _Extra) ->
   {ok, State}.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Private poo
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-do(Command, Args) -> 
+do(Command, Args) ->
   case has_newline(Args) of
     true  -> { error, "No newlines" };
-    false -> gen_server:call (?MODULE, { do, Command, Args } ) 
+    false -> gen_server:call (?MODULE, { do, Command, Args } )
   end.
 
 join([Head | [] ], _Sep) ->
@@ -338,19 +338,19 @@ join([Head | Tail], Sep) ->
 
 has_newline([]) -> false;
 has_newline(<<>>) -> false;
-has_newline([ H |  T]) 
+has_newline([ H |  T])
   when is_list(H); is_binary(H) ->
     case has_newline(H) of
       true -> true;
       false -> has_newline(T)
     end;
 has_newline([ H | T]) when is_integer(H) ->
-  if 
+  if
     H =:= $\n -> true;
     true -> has_newline(T)
   end;
 has_newline(<<H:8,T/binary>>) ->
-  if 
+  if
     H =:= $\n -> true;
     true -> has_newline(T)
   end.
@@ -373,7 +373,7 @@ collect_response( Port, RespAcc, LineAcc, Timeout) ->
 
     %% Prevent the gen_server from hanging indefinitely in case the
     %% spawned process is taking too long processing the request.
-    after Timeout ->  
+    after Timeout ->
             { error, timeout }
     end.
 -ifdef(EUNIT).
@@ -381,15 +381,15 @@ collect_response( Port, RespAcc, LineAcc, Timeout) ->
 %% Test Helpers
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-test_start_stop_(StartFun, StopFun, Tag) -> 
-  { spawn, 
+test_start_stop_(StartFun, StopFun, Tag) ->
+  { spawn,
     { inorder,
       [
         check_stopped_(Tag),
         { Tag, setup,
           StartFun,
           StopFun,
-          check_started_(Tag) 
+          check_started_(Tag)
         },
         check_stopped_(Tag)
       ]
@@ -403,7 +403,7 @@ check_started_(Tag) ->
       ?_test(pwd()),
       ?_test(ok),
       ?_test(ok)
-    ] 
+    ]
   ).
 
 check_stopped_(Tag) ->
@@ -414,34 +414,38 @@ check_stopped_(Tag) ->
     ]
   ).
 
-check_last_(RRDFile,Now) -> 
-  fun () -> 
+check_last_(RRDFile,Now) ->
+  fun () ->
     { ok, When } = erlrrd:last(RRDFile),
     When = Now
   end.
 
-start_helper_() -> 
+start_helper_() ->
   application:unset_env(erlrrd, rrdtoolcmd),
   application:unset_env(erlrrd, timeout),
-  {ok, Pid} = start_link(), 
+  {ok, Pid} = start_link(),
   Pid.
 stop_helper_(Pid) -> stop_helper_(Pid, 3000).
 stop_helper_(Pid, Timeout) ->
+  % stop helper is probably run in a separate process from start_link, so
+  % checking for 'EXIT' doesn't work, so instead monitor and check that
+  % its shutdown
+  Ref = monitor (process, Pid),
   true = exit(Pid, normal),
-  receive 
-    {'EXIT', Pid, Reason} -> Reason
-  after Timeout -> 
+  receive
+    {'DOWN', Ref, process, Pid, Reason} -> Reason
+  after Timeout ->
     throw({ timeout, { Pid, "Pid not responding to EXIT?"} })
   end.
 
 % check if the dir we're in end's in /tests
 check_cwd_helper_() ->
-   { ok, L } = file:get_cwd(),  
+   { ok, L } = file:get_cwd(),
    "stset/" ++ _  = lists:reverse(L).
 
-p_func(X,Steps) -> 
+p_func(X,Steps) ->
   Pi = math:pi(),
-  5 * ( 
+  5 * (
     math:sin( 3*Pi/2 + X/(Steps / (8*Pi) )  )
     + 1
   ).
@@ -450,10 +454,10 @@ time_since_epoch() ->
   calendar:datetime_to_gregorian_seconds( erlang:universaltime())
     - ( 719528 * 86400 ).
 
-wrap_tag_(T,L) when is_list(L) -> 
+wrap_tag_(T,L) when is_list(L) ->
   [ { T, X } || X <- L ].
 
-cast(Blah) -> 
+cast(Blah) ->
  gen_server:cast(?MODULE, Blah ).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -463,17 +467,17 @@ cast(Blah) ->
 %%%% test starting and stopping %%%%
 
 -define(spew(Args), io:format(user, "~p~n", [{Args}])).
--define(assertExists(File), 
+-define(assertExists(File),
       { ok, _ } = file:read_file_info(File)).
--define(assertEnoent(File), 
+-define(assertEnoent(File),
       { error, enoent } = file:read_file_info(File)).
 
 
-start_link_test_() -> 
+start_link_test_() ->
   test_start_stop_(
     fun start_helper_/0,
     fun stop_helper_/1,
-    "start_link test" 
+    "start_link test"
   ).
 
 start_stop_test_() ->
@@ -485,26 +489,26 @@ start_stop_test_() ->
 
 start_sup_test_() ->
   test_start_stop_(
-    fun() -> 
+    fun() ->
       {ok,Pid} = erlrrd_sup:start_link(),
-      Pid 
+      Pid
     end,
     fun stop_helper_/1,
-    "sup:start_link/0 exit/2" 
+    "sup:start_link/0 exit/2"
   ).
 
 start_sup2_test_() ->
   test_start_stop_(
-    fun() -> 
+    fun() ->
       check_cwd_helper_(),
       {ok,Pid} = erlrrd_sup:start_link("./dummyrrdtool"),
-      Pid 
+      Pid
     end,
     fun stop_helper_/1,
-    "sup:start_link/1 exit/2" 
+    "sup:start_link/1 exit/2"
   ).
 
-start_app_test_() -> 
+start_app_test_() ->
   test_start_stop_(
     fun()  -> ok = erlrrd_app:start() end,
     fun(_) -> ok = erlrrd_app:stop()  end,
@@ -524,7 +528,7 @@ datain_dataout_test_() ->
   StepSize = 60,
   Steps = round((Now - Then) / StepSize),
   { setup,
-    fun()  -> 
+    fun()  ->
       check_cwd_helper_(),
       file:delete(RRDFile),
       file:delete(RRDDump),
@@ -533,12 +537,12 @@ datain_dataout_test_() ->
       { ok, Pid } = start_link(),
       Pid
     end,
-    fun(Pid) -> 
+    fun(Pid) ->
       stop_helper_(Pid),
       file:delete(RRDFile),
       file:delete(RRDDump),
       file:delete(RRDRestoredFile),
-      ok 
+      ok
     end,
     { inorder,
       [
@@ -553,7 +557,7 @@ datain_dataout_test_() ->
         end,
 
         % write sin wave to rrd
-        fun() -> 
+        fun() ->
           lists:foreach(
             fun(X) ->
               P = p_func(X,Steps),
@@ -568,7 +572,7 @@ datain_dataout_test_() ->
 
         % check the update times
         check_last_(RRDFile, Now),
-        fun() -> 
+        fun() ->
           { ok, When } = erlrrd:first(RRDFile),
           RoundThen = (erlang:trunc(Then/StepSize) + 1) * StepSize,
           When = RoundThen
@@ -577,7 +581,7 @@ datain_dataout_test_() ->
         ?_test(?assertMatch({error, _}, erlrrd:first("/somenothing/file"))),
 
         % make a graph!! :)
-        fun() -> 
+        fun() ->
           { ok, _ } = erlrrd:graph([
             "-l 0 -r", " ",
             "-w 700 -h 200 -a PNG ", PNGFile,
@@ -588,7 +592,7 @@ datain_dataout_test_() ->
         end,
 
         % run fetch
-        fun() -> 
+        fun() ->
           { ok, _Data } = erlrrd:fetch([
             RRDFile, " AVERAGE ",
             io_lib:format(" --start ~B --end ~B", [ Then, Now ])
@@ -599,14 +603,14 @@ datain_dataout_test_() ->
         end,
 
         % dump the rrd
-        fun() -> 
+        fun() ->
           ?assertEnoent(RRDDump),
           { ok, _ } = erlrrd:dump( RRDFile ++ " " ++ RRDDump ),
           ?assertExists(RRDDump)
         end,
 
         % restore the rrd
-        fun() -> 
+        fun() ->
           ?assertExists(RRDDump),
           ?assertEnoent(RRDRestoredFile),
           { ok, _ } = erlrrd:restore( RRDDump ++ " " ++ RRDRestoredFile ),
@@ -616,7 +620,7 @@ datain_dataout_test_() ->
 
         % xport
         { "xport",
-          fun() -> 
+          fun() ->
             ?assertExists(RRDRestoredFile),
             {ok, Response} = xport([
               "DEF:c=", RRDRestoredFile, ":thedata:AVERAGE",
@@ -627,26 +631,26 @@ datain_dataout_test_() ->
             Response
           end
         },
-        
+
         %lastupdate
-        fun() -> 
+        fun() ->
           { ok, [ _, _, [Last]] } = lastupdate(RRDRestoredFile),
           ?assertMatch(
-            {match, _, _ },
-            regexp:match(Last, 
-              % TODO make the regex match beginning of line? why no work? 
+            {match, _ },
+            re:run (Last,
+              % TODO make the regex match beginning of line? why no work?
               io_lib:format("~B", [ Now ])
             )
           ),
           ok
         end,
 
-        % info 
-        fun() -> 
+        % info
+        fun() ->
           { ok, Info } = info(RRDFile),
           [ ["filename = " ++ _L] | _T ] = Info
         end,
-          
+
         fun() -> commas_are_cool end
       ]
     }
@@ -655,53 +659,54 @@ datain_dataout_test_() ->
 remote_cmds_test_() ->
   Dir = "makadir",
   { setup,
-    fun() -> 
+    fun() ->
       check_cwd_helper_(),
       ?assertEnoent(Dir),
       start_helper_()
     end,
-    fun(P) -> 
+    fun(P) ->
       file:del_dir(Dir),
       stop_helper_(P)
     end,
-    { inorder, 
-      [ 
+    { inorder,
+      [
         % pwd
-        { "pwd1", fun() -> 
+        { "pwd1", fun() ->
           { ok, Cwd } = erlrrd:pwd(),
+%          io:format (user, "remote_cmds_test_ : pwd1 : ~p~n", [Cwd]),
           "stset/" ++ _  = lists:reverse(Cwd)
         end},
         { "mkdir", fun() -> erlrrd:mkdir(Dir) end },
         { "cd ", fun() -> ok = erlrrd:cd(Dir) end},
-        % pwd 
-        { "pwd2", 
-          fun() -> 
+        % pwd
+        { "pwd2",
+          fun() ->
             { ok, Cwd } = erlrrd:pwd(),
-            { match, _, _ }  = 
-              regexp:match(Cwd, "/tests/" ++ Dir ++ "$")
-          end 
+%            io:format (user, "remote_cmds_test_ : pwd2 : ~p~n", [Cwd]),
+            { match, _ }  = re:run (Cwd, "/tests/" ++ Dir ++ "$")
+          end
         },
-        { "ls", 
-          fun() -> 
-            % relys on '.' and '..' always returning first? 
-            % is that a bad idea? 
+        { "ls",
+          fun() ->
+            % relys on '.' and '..' always returning first?
+            % is that a bad idea?
             { ok, List } = ls(),
-            io:format(user," ~p~n", [List]),
-            ?assert( lists:any(fun(X) -> X =:= ["d .."] end, List))
+%            io:format(user,"remote_cmds_test_ : ls : ~p~n", [List]),
+            ?assertEqual ( true, lists:any(fun(X) -> X =:= ["d .."] end, List))
           end },
         fun() -> commas_are_cool end
       ]
     }
   }.
 
-c_test_() -> 
+c_test_() ->
   [
     ?_test(
-      [ 
+      [
         ["\"", "these", "\""], " ",
         ["\"", "are",   "\""], " ",
         ["\"", "my",    "\""], " ",
-        ["\"", "args",  "\""]  
+        ["\"", "args",  "\""] 
       ] = c(["these", "are", "my", "args"])),
     ?_test([[ "\"", "a", "\""]] = c(["a"]))
   ].
@@ -711,17 +716,17 @@ pass_newlines_test_() ->
   { setup,
     fun start_helper_/0,
     fun stop_helper_/1,
-    [ 
+    [
       ?_assertMatch( { error, M }, cd("..\n")),
       ?_assertMatch( { error, M }, info("fart.rrd\n")),
-      ?_assertMatch( { error, M }, 
+      ?_assertMatch( { error, M },
         create(["foo.rrd bar baz", [[[[<<"blahdedah\n">>]]]], "haha"])
       ),
       fun() -> ok end
     ]
   }.
 
-graph_to_stdout_saftey_test_() -> 
+graph_to_stdout_saftey_test_() ->
   M = { error, "Graphing to stdout not supported." },
   [
     ?_assertMatch( M, graph(" -")),
@@ -739,9 +744,9 @@ graph_to_stdout_saftey_test_() ->
 
 %%%% tests for corner cases %%%%
 
-cause_long_response_test_() -> 
+cause_long_response_test_() ->
   { setup,
-    fun()  -> 
+    fun()  ->
       check_cwd_helper_(),
       { ok, Pid } = start_link("./dummyrrdtool -"),
       Pid
@@ -750,9 +755,9 @@ cause_long_response_test_() ->
     ?_test(do(longresponse, []))
   }.
 
-cause_timeout_test_() -> 
+cause_timeout_test_() ->
   { setup,
-    fun()  -> 
+    fun()  ->
       check_cwd_helper_(),
       ok = application:set_env(erlrrd, timeout, 1),
       { ok, Pid } = erlrrd_sup:start_link("./dummyrrdtool -"),
@@ -764,16 +769,16 @@ cause_timeout_test_() ->
 
 %%%% tests of privates %%%%
 
-join_test() -> 
+join_test() ->
   [ "a", " ", "b", " ", "c"] = join(["a", "b", "c"], " ").
 join_test_() ->
-  [ 
+  [
     ?_test([ "a", " ", "b", " ", "c"] = join(["a", "b", "c"], " ")),
-    ?_assertNot([ "a", "b", " ", "c"]  =:= join(["a", "b", "c"], " "))
+    ?_assertEqual (false, [ "a", "b", " ", "c"]  =:= join(["a", "b", "c"], " "))
   ].
 
 has_newline_test_() ->
-  [ 
+  [
     ?_test( true  = has_newline("\n")),
     ?_test( true  = has_newline(["\n"])),
     ?_test( true  = has_newline(
@@ -783,8 +788,8 @@ has_newline_test_() ->
     ?_test( true  = has_newline(
       ["these\n", ["are", [ "my args" ] | <<"newline">> ], "so", "there"])),
     ?_test( true  = has_newline(
-      ["these", ["are", 
-      [ "my args" | [[[[[[[[ "blah\n"]]]]]]]] ] | <<"newline">> ], 
+      ["these", ["are",
+      [ "my args" | [[[[[[[[ "blah\n"]]]]]]]] ] | <<"newline">> ],
       "so", "there"])),
     ?_test( false = has_newline("")),
     ?_test( false = has_newline([])),
@@ -793,7 +798,7 @@ has_newline_test_() ->
 
 %%%%% tests to get coverage %%%%%
 
-should_be_done_better_test_() -> 
+should_be_done_better_test_() ->
   { setup,
     fun start_helper_/0,
     fun stop_helper_/1,
@@ -812,25 +817,25 @@ handle_cast_test_() ->
     ?_test(cast(blah))
   }.
 
-handle_info_test_() -> 
+handle_info_test_() ->
   { setup,
     fun start_helper_/0,
     fun stop_helper_/1,
     ?_test(?MODULE ! yo)
   }.
 
-stop_helper_test_() -> 
-  { setup, 
+stop_helper_test_() ->
+  { setup,
     % start fun
-    fun() -> 
-      F = fun(F) -> 
+    fun() ->
+      F = fun(F) ->
         receive
           Any -> io:format(user,"~p Hey, got: ~p~n", [ self(), Any ])
         end,
         F(F)
       end,
       spawn(
-        fun() -> 
+        fun() ->
           process_flag(trap_exit, true),
           F(F)
         end
@@ -839,27 +844,29 @@ stop_helper_test_() ->
     % stop fun,
     fun(P) -> exit(P, kill) end,
     % test gen
-    fun(P) -> 
+    fun(P) ->
       ?_assertThrow({timeout,_}, stop_helper_(P, 1))
     end
   }.
 
-port_exit_test_() -> 
-  ?_assert(
+port_exit_test_() ->
+  ?_assertEqual (
+    true,
     begin
       io:format(user, "~n==== test: expect erlrrd exit~n", []),
+      process_flag(trap_exit, true),
       {ok,Pid} = start_link("./dummyrrdtool"),
       {ok, _} = do(die, []),
-      receive 
+      receive
         { 'EXIT', Pid, {port_exit, 1} } -> true
-      after 4000 -> 
+      after 4000 ->
         exit(Pid,kill),
         false
       end
     end
   ).
 
-code_change_test() -> 
+code_change_test() ->
   { ok, state } = code_change( oldvsn, state, extra ).
 
 -endif.
