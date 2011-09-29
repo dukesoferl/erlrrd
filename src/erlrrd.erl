@@ -441,7 +441,7 @@ stop_helper_(Pid, Timeout) ->
 % check if the dir we're in end's in /tests
 check_cwd_helper_() ->
    { ok, L } = file:get_cwd(),
-   "stset/" ++ _  = lists:reverse(L).
+   "tinue./" ++ _  = lists:reverse(L).
 
 p_func(X,Steps) ->
   Pi = math:pi(),
@@ -501,7 +501,7 @@ start_sup2_test_() ->
   test_start_stop_(
     fun() ->
       check_cwd_helper_(),
-      {ok,Pid} = erlrrd_sup:start_link("./dummyrrdtool"),
+      {ok,Pid} = erlrrd_sup:start_link("../tests/dummyrrdtool"),
       Pid
     end,
     fun stop_helper_/1,
@@ -674,7 +674,7 @@ remote_cmds_test_() ->
         { "pwd1", fun() ->
           { ok, Cwd } = erlrrd:pwd(),
 %          io:format (user, "remote_cmds_test_ : pwd1 : ~p~n", [Cwd]),
-          "stset/" ++ _  = lists:reverse(Cwd)
+          "tinue./" ++ _  = lists:reverse(Cwd)
         end},
         { "mkdir", fun() -> erlrrd:mkdir(Dir) end },
         { "cd ", fun() -> ok = erlrrd:cd(Dir) end},
@@ -683,7 +683,7 @@ remote_cmds_test_() ->
           fun() ->
             { ok, Cwd } = erlrrd:pwd(),
 %            io:format (user, "remote_cmds_test_ : pwd2 : ~p~n", [Cwd]),
-            { match, _ }  = re:run (Cwd, "/tests/" ++ Dir ++ "$")
+            { match, _ }  = re:run (Cwd, "/.eunit/" ++ Dir ++ "$")
           end
         },
         { "ls",
@@ -748,7 +748,7 @@ cause_long_response_test_() ->
   { setup,
     fun()  ->
       check_cwd_helper_(),
-      { ok, Pid } = start_link("./dummyrrdtool -"),
+      { ok, Pid } = start_link("../tests/dummyrrdtool -"),
       Pid
     end,
     fun stop_helper_/1,
@@ -760,7 +760,7 @@ cause_timeout_test_() ->
     fun()  ->
       check_cwd_helper_(),
       ok = application:set_env(erlrrd, timeout, 1),
-      { ok, Pid } = erlrrd_sup:start_link("./dummyrrdtool -"),
+      { ok, Pid } = erlrrd_sup:start_link("../tests/dummyrrdtool -"),
       Pid
     end,
     fun stop_helper_/1,
@@ -855,7 +855,7 @@ port_exit_test_() ->
     begin
       io:format(user, "~n==== test: expect erlrrd exit~n", []),
       process_flag(trap_exit, true),
-      {ok,Pid} = start_link("./dummyrrdtool"),
+      {ok,Pid} = start_link("../tests/dummyrrdtool"),
       {ok, _} = do(die, []),
       receive
         { 'EXIT', Pid, {port_exit, 1} } -> true

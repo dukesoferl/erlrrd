@@ -17,3 +17,6 @@ Makefile.in
 Makefile.otp
 missing
 *.gz
+.eunit
+ebin
+doc

@@ -1,0 +1,8 @@
+{application, erlrrd,
+ [{description, "erlrrd"},
+  {vsn, "0.4.0"},
+  {modules, []},
+  {registered, []},
+  {mod, {erlrrd_app, []}},
+  {env, []},
+  {applications, [kernel, stdlib]}]}.
