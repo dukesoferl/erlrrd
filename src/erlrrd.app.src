@@ -1,8 +1,8 @@
 {application, erlrrd,
- [{description, "erlrrd"},
+ [{description, "rrdtool binding for erlang. [ via an erlang Port. ]"},
   {vsn, "0.4.0"},
   {modules, []},
-  {registered, []},
+  {registered, [erlrrd]},
   {mod, {erlrrd_app, []}},
-  {env, []},
+  {env, [{rrdtoolcmd,"rrdtool -"},{timeout,30000}]},
   {applications, [kernel, stdlib]}]}.
