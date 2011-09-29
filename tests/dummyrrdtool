@@ -1,26 +1,34 @@
-#!/bin/sh
+#!/usr/bin/env perl
 
-while read cmd rest
-do
-  case $cmd in
-    pwd)
-      echo "ERROR: pwd disabled for testing"
-      ;;
-    timeout)
-       sleep 1
-       echo "ERROR: timed out"
-      ;;
-    die)
-      echo "OK u:0.01 s:0.02 r:0.03"
-      exit 1
-      ;;
-    longresponse)
-      perl -le 'print "a234567890123456789012345678901234567890" x (255)'
-      echo "OK u:0.01 s:0.02 r:0.03"
-      ;;
-    *)
-      echo $cmd $rest
-      echo "OK u:0.01 s:0.02 r:0.03"
-      ;;
-  esac
-done
+local $| = 1;
+while (defined($line = <ARGV>)) {
+  chomp $line;
+
+  if ($line =~ m/([^\s]+)\s(.*)/)
+    {
+      $cmd = $1;
+      $rest = $2;
+    }
+  else
+    {
+      $cmd = $line;
+      $rest = "";
+    }
+
+  if ($cmd eq "pwd") {
+    print "ERROR: pwd disabled for testing\n";
+  } elsif ($cmd eq "timeout") {
+    sleep 1;
+    print "ERROR: timed out\n";
+  } elsif ($cmd eq "die") {
+    print "OK u:0.01 s:0.02 r:0.03\n";
+    exit 1;
+  } elsif ($cmd eq "longresponse") {
+    print "a234567890123456789012345678901234567890" x (255) . "\n";
+    print "OK u:0.01 s:0.02 r:0.03\n";
+  } else {
+    print "$cmd $rest\n";
+    print "OK u:0.01 s:0.02 r:0.03\n";
+  }
+}
+0;
