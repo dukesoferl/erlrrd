@@ -2,3 +2,4 @@ fw-erl-app-template.app.in
 Makefile.am
 *.app
 *.beam
+.dialyzer_ok

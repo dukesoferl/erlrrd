@@ -1,2 +1,6 @@
 Makefile.am
 otp-test-wrapper.sh
+*.COVER.out
+*.test.out
+foo.png
+module-*
