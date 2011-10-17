@@ -1,3 +1,6 @@
+Version 0.4.1
+  * switched from framewerk to rebar
+
 Version 0.4.0
   * license is now NewBSD
   * framewerk hooks updated
