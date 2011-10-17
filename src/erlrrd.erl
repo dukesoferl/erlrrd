@@ -501,7 +501,7 @@ start_sup2_test_() ->
   test_start_stop_(
     fun() ->
       check_cwd_helper_(),
-      {ok,Pid} = erlrrd_sup:start_link("../tests/dummyrrdtool"),
+      {ok,Pid} = erlrrd_sup:start_link("../test/dummyrrdtool"),
       Pid
     end,
     fun stop_helper_/1,
@@ -748,7 +748,7 @@ cause_long_response_test_() ->
   { setup,
     fun()  ->
       check_cwd_helper_(),
-      { ok, Pid } = start_link("../tests/dummyrrdtool -"),
+      { ok, Pid } = start_link("../test/dummyrrdtool -"),
       Pid
     end,
     fun stop_helper_/1,
@@ -760,7 +760,7 @@ cause_timeout_test_() ->
     fun()  ->
       check_cwd_helper_(),
       ok = application:set_env(erlrrd, timeout, 1),
-      { ok, Pid } = erlrrd_sup:start_link("../tests/dummyrrdtool -"),
+      { ok, Pid } = erlrrd_sup:start_link("../test/dummyrrdtool -"),
       Pid
     end,
     fun stop_helper_/1,
@@ -855,7 +855,7 @@ port_exit_test_() ->
     begin
       io:format(user, "~n==== test: expect erlrrd exit~n", []),
       process_flag(trap_exit, true),
-      {ok,Pid} = start_link("../tests/dummyrrdtool"),
+      {ok,Pid} = start_link("../test/dummyrrdtool"),
       {ok, _} = do(die, []),
       receive
         { 'EXIT', Pid, {port_exit, 1} } -> true
