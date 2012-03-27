@@ -1,2 +1,0 @@
-#!/bin/sh 
-(cat && kill 0) | rrdcached $*
