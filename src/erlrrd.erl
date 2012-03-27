@@ -123,7 +123,8 @@ restore    (Args) when is_list(Args) -> do(restore,    Args).
 last       (Args) when is_list(Args) ->
   case do(last,       Args) of
     { error, Reason } -> { error, Reason };
-    { ok, [[Response]] } -> { ok, erlang:list_to_integer(Response) }
+    { ok, [[Response]] } ->
+      { ok, erlang:list_to_integer(Response) }
   end.
 
 %% @spec lastupdate(erlang:iodata()) -> { ok, Response }  |
@@ -259,20 +260,49 @@ pwd        ()     ->
 
 %% @hidden
 init([]) ->
-  RRDToolCmd = case application:get_env(erlrrd, rrdtoolcmd) of
-    { ok, Cmd } ->  Cmd;
-    undefined -> "rrdtool -"
-  end,
-  Timeout = case application:get_env(erlrrd, timeout) of
-    { ok, T } -> T;
-    undefined -> 3000
-  end,
+  % if a cache is defined, we'll want to set the environment variable
+  % which allows the rrdtool port command to talk to it
+  Env =
+    case application:get_env (erlrrd, cache) of
+      undefined -> [];
+      {ok, _} ->
+        [ {"RRDCACHED_ADDRESS",erlrrdcached:listen_file ()} ]
+    end,
+
+  RRDToolCmd =
+    case application:get_env(erlrrd, rrdtoolcmd) of
+      { ok, C } ->  C;
+      undefined -> "rrdtool -"
+    end,
+
+%  PrivDir =
+%    filename:join ([filename:dirname(code:which(?MODULE)),"..","priv"]),
+%  ExtCmd =
+%    filename:join([PrivDir, "killable"]),
+  Cmd = RRDToolCmd, %lists:concat([ExtCmd," ",RRDToolCmd]),
+
+  Timeout =
+    case application:get_env(erlrrd, timeout) of
+      { ok, T } -> T;
+      undefined -> 3000
+    end,
   process_flag(trap_exit, true),
   Port = erlang:open_port(
-    {spawn, RRDToolCmd},
-    [ {line, 10000}, eof, exit_status, stream ]
+    {spawn, Cmd},
+    [ {line, 10000}, eof, exit_status, stream,
+      {env, Env }
+    ]
   ),
-  {ok, #state2{port = Port, timeout = Timeout}}.
+
+  {ok, #state2 {port = Port, timeout = Timeout} }.
+%  case collect_response(Port, Timeout) of
+%    { response, Response } ->
+%      {ok, #state2{port = Port, timeout = Timeout, kill_command = Response}};
+%    { error, timeout } ->
+%      {stop, port_timeout};
+%    { error, Error } ->
+%      {stop, { error, Error  }}
+%  end.
 
 %% handle_call
 %% @hidden
@@ -284,12 +314,20 @@ handle_call(
     Line = [ erlang:atom_to_list(Action), " ", Args , "\n"],
     port_command(Port, Line),
     case collect_response(Port, Timeout) of
-          {response, Response} ->
-              {reply, { ok, Response }, State};
-          { error, timeout } ->
-              {stop, port_timeout, State};
-          { error, Error } ->
-              {reply, { error, Error  }, State}
+      {response, Response} ->
+        { reply, { ok, Response }, State };
+      {error, ["request: internal error while talking to rrdcached", _]} ->
+        error_logger:error_msg ("rrdcached error"),
+        erlrrdcached:ping (), % attempt to get it to restart
+        { reply, retry, State };
+      {error,["Unable to connect to rrdcached: Connection refused", Response]}->
+        error_logger:error_msg ("rrdcached error"),
+        erlrrdcached:ping (), % attempt to get it to restart
+        { reply, {ok, Response }, State };
+      { error, timeout } ->
+        { stop, port_timeout, State };
+      { error, Error } ->
+        { reply, { error, Error  }, State }
     end.
 
 %% handle_cast
@@ -314,7 +352,9 @@ handle_info(_Msg, State) ->
 
 %% terminate
 %% @hidden
-terminate(_Reason, _State) -> ok.
+terminate(_Reason, #state2 {port = Port}) ->
+  port_command(Port, "quit\n"),
+  ok.
 
 %% code_change
 %% @hidden
@@ -328,7 +368,13 @@ code_change(_OldVsn, State, _Extra) ->
 do(Command, Args) ->
   case has_newline(Args) of
     true  -> { error, "No newlines" };
-    false -> gen_server:call (?MODULE, { do, Command, Args } )
+    false ->
+      case gen_server:call (?MODULE, { do, Command, Args } ) of
+        retry ->
+          % attempt to retry once
+          gen_server:call (?MODULE, { do, Command, Args } );
+        R -> R
+      end
   end.
 
 join([Head | [] ], _Sep) ->
@@ -360,22 +406,25 @@ collect_response(Port, Timeout ) ->
     collect_response(Port, [], [], Timeout ).
 
 collect_response( Port, RespAcc, LineAcc, Timeout) ->
-    receive
-        {Port, {data, {eol, "OK u:" ++ _T }}} ->
-            {response, lists:reverse(RespAcc)};
-        {Port, {data, {eol, "ERROR: " ++ Error }}} ->
-            {error, [ Error, lists:reverse(RespAcc)]};
-        {Port, {data, {eol, Result}}} ->
-            Line = lists:reverse([Result | LineAcc]),
-            collect_response(Port, [Line | RespAcc], [], Timeout);
-        {Port, {data, {noeol, Result}}} ->
-            collect_response(Port, RespAcc, [Result | LineAcc], Timeout)
+  receive
+    { Port, {data, {eol, C = "kill -9 " ++ _Pid }}} ->
+      {response, C};
+    { Port, {data, {eol, "OK u:" ++ _T }}} ->
+      {response, lists:reverse(RespAcc)};
+    { Port, {data, {eol, "ERROR: " ++ Error }}} ->
+      {error, [ Error, lists:reverse(RespAcc)]};
+    { Port, {data, {eol, Result}}} ->
+      Line = lists:reverse([Result | LineAcc]),
+      collect_response(Port, [Line | RespAcc], [], Timeout);
+    { Port, {data, {noeol, Result}}} ->
+      collect_response(Port, RespAcc, [Result | LineAcc], Timeout)
 
-    %% Prevent the gen_server from hanging indefinitely in case the
-    %% spawned process is taking too long processing the request.
-    after Timeout ->
-            { error, timeout }
-    end.
+  %% Prevent the gen_server from hanging indefinitely in case the
+  %% spawned process is taking too long processing the request.
+  after Timeout ->
+    { error, timeout }
+  end.
+
 -ifdef(EUNIT).
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Test Helpers
@@ -423,10 +472,14 @@ check_last_(RRDFile,Now) ->
 start_helper_() ->
   application:unset_env(erlrrd, rrdtoolcmd),
   application:unset_env(erlrrd, timeout),
+  application:unset_env(erlrrd, cache),
   {ok, Pid} = start_link(),
   Pid.
 stop_helper_(Pid) -> stop_helper_(Pid, 3000).
 stop_helper_(Pid, Timeout) ->
+  application:unset_env(erlrrd, rrdtoolcmd),
+  application:unset_env(erlrrd, timeout),
+  application:unset_env(erlrrd, cache),
   % stop helper is probably run in a separate process from start_link, so
   % checking for 'EXIT' doesn't work, so instead monitor and check that
   % its shutdown
@@ -466,7 +519,6 @@ cast(Blah) ->
 
 %%%% test starting and stopping %%%%
 
--define(spew(Args), io:format(user, "~p~n", [{Args}])).
 -define(assertExists(File),
       { ok, _ } = file:read_file_info(File)).
 -define(assertEnoent(File),
@@ -518,7 +570,7 @@ start_app_test_() ->
 %%%% test interfaces %%%%
 
 datain_dataout_test_() ->
-  Prefix = "foo",
+  Prefix = "datain_dataout",
   RRDFile = Prefix ++ ".rrd",
   PNGFile = Prefix ++ ".png",
   RRDDump = Prefix ++ ".rrd.xml",
@@ -527,132 +579,132 @@ datain_dataout_test_() ->
   Then = Now - 86400,
   StepSize = 60,
   Steps = round((Now - Then) / StepSize),
-  { setup,
-    fun()  ->
-      check_cwd_helper_(),
-      file:delete(RRDFile),
-      file:delete(RRDDump),
-      file:delete(RRDRestoredFile),
-      ?assertEnoent(RRDFile),
-      { ok, Pid } = start_link(),
-      Pid
-    end,
-    fun(Pid) ->
-      stop_helper_(Pid),
-      file:delete(RRDFile),
-      file:delete(RRDDump),
-      file:delete(RRDRestoredFile),
-      ok
-    end,
-    { inorder,
-      [
-        % create an rrd
-        fun() ->
-          {ok, _ } = erlrrd:create([
-            io_lib:fwrite("~s --start ~B", [RRDFile, Then]),
-            io_lib:fwrite(" --step ~B DS:thedata:GAUGE:~B:U:U",
-              [ StepSize, StepSize ]),
-            io_lib:fwrite(" RRA:AVERAGE:0.5:1:~B",[Steps])
-          ])
-        end,
-
-        % write sin wave to rrd
-        fun() ->
-          lists:foreach(
-            fun(X) ->
-              P = p_func(X,Steps),
-              %io:format(user, "~s ~B:~f~n", [ RRDFile, Then + X * StepSize, P ]),
-              {ok, _ } = erlrrd:update(
-                io_lib:format("~s ~B:~f", [ RRDFile, Then + X * StepSize, P ])
-              )
-            end,
-            lists:seq(1, Steps)
-          )
-        end,
-
-        % check the update times
-        check_last_(RRDFile, Now),
-        fun() ->
-          { ok, When } = erlrrd:first(RRDFile),
-          RoundThen = (erlang:trunc(Then/StepSize) + 1) * StepSize,
-          When = RoundThen
-        end,
-        ?_test(?assertMatch({error, _}, erlrrd:last("/somenothing/file"))),
-        ?_test(?assertMatch({error, _}, erlrrd:first("/somenothing/file"))),
-
-        % make a graph!! :)
-        fun() ->
-          { ok, _ } = erlrrd:graph([
-            "-l 0 -r", " ",
-            "-w 700 -h 200 -a PNG ", PNGFile,
-            " DEF:thedata=", RRDFile, ":thedata:AVERAGE AREA:thedata#CC9945",
-            io_lib:format(" --start ~B --end ~B", [ Then, Now ])
-          ])
-          % ok, now how can we check the graph???  hmm.
-        end,
-
-        % run fetch
-        fun() ->
-          { ok, _Data } = erlrrd:fetch([
-            RRDFile, " AVERAGE ",
-            io_lib:format(" --start ~B --end ~B", [ Then, Now ])
-          ]),
-          %?spew(Data),
-          %TODO check data
-          ok
-        end,
-
-        % dump the rrd
-        fun() ->
-          ?assertEnoent(RRDDump),
-          { ok, _ } = erlrrd:dump( RRDFile ++ " " ++ RRDDump ),
-          ?assertExists(RRDDump)
-        end,
-
-        % restore the rrd
-        fun() ->
-          ?assertExists(RRDDump),
-          ?assertEnoent(RRDRestoredFile),
-          { ok, _ } = erlrrd:restore( RRDDump ++ " " ++ RRDRestoredFile ),
-          ?assertExists(RRDRestoredFile)
-        end,
-        check_last_(RRDRestoredFile, Now),
-
-        % xport
-        { "xport",
+  { timeout, 3000,
+    { setup,
+      fun()  ->
+        check_cwd_helper_(),
+        file:delete(RRDFile),
+        file:delete(RRDDump),
+        file:delete(RRDRestoredFile),
+        ?assertEnoent(RRDFile),
+        { ok, Pid } = start_link(),
+        Pid
+      end,
+      fun(Pid) ->
+        stop_helper_(Pid),
+        file:delete(RRDFile),
+        file:delete(RRDDump),
+        file:delete(RRDRestoredFile),
+        ok
+      end,
+      { inorder,
+        [
+          % create an rrd
           fun() ->
-            ?assertExists(RRDRestoredFile),
-            {ok, Response} = xport([
-              "DEF:c=", RRDRestoredFile, ":thedata:AVERAGE",
-              " XPORT:c",
+            {ok, _ } = erlrrd:create([
+              io_lib:fwrite("~s --start ~B", [RRDFile, Then]),
+              io_lib:fwrite(" --step ~B DS:thedata:GAUGE:~B:U:U",
+                [ StepSize, StepSize ]),
+              io_lib:fwrite(" RRA:AVERAGE:0.5:1:~B",[Steps])
+            ])
+          end,
+
+          % write sin wave to rrd
+          fun() ->
+            lists:foreach(
+              fun(X) ->
+                P = p_func(X,Steps),
+                {ok, _ } = erlrrd:update(
+                  io_lib:format("~s ~B:~f", [ RRDFile, Then + X * StepSize, P ])
+                )
+              end,
+              lists:seq(1, Steps)
+            )
+          end,
+
+          % check the update times
+          check_last_(RRDFile, Now),
+          fun() ->
+            { ok, When } = erlrrd:first(RRDFile),
+            RoundThen = (erlang:trunc(Then/StepSize) + 1) * StepSize,
+            When = RoundThen
+          end,
+          ?_test(?assertMatch({error, _}, erlrrd:last("/somenothing/file"))),
+          ?_test(?assertMatch({error, _}, erlrrd:first("/somenothing/file"))),
+
+          % make a graph!! :)
+          fun() ->
+            { ok, _ } = erlrrd:graph([
+              "-l 0 -r", " ",
+              "-w 700 -h 200 -a PNG ", PNGFile,
+              " DEF:thedata=", RRDFile, ":thedata:AVERAGE AREA:thedata#CC9945",
+              io_lib:format(" --start ~B --end ~B", [ Then, Now ])
+            ])
+            % ok, now how can we check the graph???  hmm.
+          end,
+
+          % run fetch
+          fun() ->
+            { ok, _Data } = erlrrd:fetch([
+              RRDFile, " AVERAGE ",
               io_lib:format(" --start ~B --end ~B", [ Then, Now ])
             ]),
-            %% TODO check response
-            Response
-          end
-        },
+            %TODO check data
+            ok
+          end,
 
-        %lastupdate
-        fun() ->
-          { ok, [ _, _, [Last]] } = lastupdate(RRDRestoredFile),
-          ?assertMatch(
-            {match, _ },
-            re:run (Last,
-              % TODO make the regex match beginning of line? why no work?
-              io_lib:format("~B", [ Now ])
-            )
-          ),
-          ok
-        end,
+          % dump the rrd
+          fun() ->
+            ?assertEnoent(RRDDump),
+            { ok, _ } = erlrrd:dump( RRDFile ++ " " ++ RRDDump ),
+            ?assertExists(RRDDump)
+          end,
 
-        % info
-        fun() ->
-          { ok, Info } = info(RRDFile),
-          [ ["filename = " ++ _L] | _T ] = Info
-        end,
+          % restore the rrd
+          fun() ->
+            ?assertExists(RRDDump),
+            ?assertEnoent(RRDRestoredFile),
+            { ok, _ } = erlrrd:restore( RRDDump ++ " " ++ RRDRestoredFile ),
+            ?assertExists(RRDRestoredFile)
+          end,
+          check_last_(RRDRestoredFile, Now),
 
-        fun() -> commas_are_cool end
-      ]
+          % xport
+          { "xport",
+            fun() ->
+              ?assertExists(RRDRestoredFile),
+              {ok, Response} = xport([
+                "DEF:c=", RRDRestoredFile, ":thedata:AVERAGE",
+                " XPORT:c",
+                io_lib:format(" --start ~B --end ~B", [ Then, Now ])
+              ]),
+              %% TODO check response
+              Response
+            end
+          },
+
+          %lastupdate
+          fun() ->
+            { ok, [ _, _, [Last]] } = lastupdate(RRDRestoredFile),
+            ?assertMatch(
+              {match, _ },
+              re:run (Last,
+                % TODO make the regex match beginning of line? why no work?
+                io_lib:format("~B", [ Now ])
+              )
+            ),
+            ok
+          end,
+
+          % info
+          fun() ->
+            { ok, Info } = info(RRDFile),
+            [ ["filename = " ++ _L] | _T ] = Info
+          end,
+
+          fun() -> commas_are_cool end
+        ]
+      }
     }
   }.
 
@@ -850,21 +902,23 @@ stop_helper_test_() ->
   }.
 
 port_exit_test_() ->
-  ?_assertEqual (
-    true,
-    begin
-      io:format(user, "~n==== test: expect erlrrd exit~n", []),
-      process_flag(trap_exit, true),
-      {ok,Pid} = start_link("../test/dummyrrdtool"),
-      {ok, _} = do(die, []),
-      receive
-        { 'EXIT', Pid, {port_exit, 1} } -> true
-      after 4000 ->
-        exit(Pid,kill),
-        false
+  { timeout, 5000,
+    ?_assertEqual (
+      true,
+      begin
+        ?debugMsg ("~n==== test: expect erlrrd exit~n"),
+        process_flag (trap_exit, true),
+        {ok,Pid} = start_link("../test/dummyrrdtool"),
+        {ok, _} = do(die, []),
+        receive
+          { 'EXIT', Pid, {port_exit, 1} } -> true
+        after 4000 ->
+          exit(Pid,kill),
+          false
+        end
       end
-    end
-  ).
+    )
+  }.
 
 code_change_test() ->
   { ok, state } = code_change( oldvsn, state, extra ).
