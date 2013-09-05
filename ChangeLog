@@ -1,3 +1,6 @@
+Version 0.5.1
+  * rrdcached needs to keytake for pidfile
+
 Version 0.5.0
   * add rrdcached
 

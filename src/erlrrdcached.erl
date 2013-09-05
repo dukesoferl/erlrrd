@@ -99,7 +99,7 @@ init (Config0) ->
     end,
 
   { PidFile, Config3 } =
-    case lists:keysearch (pidfile, 1, Config2) of
+    case lists:keytake (pidfile, 1, Config2) of
       {value, {pidfile, P}, C3} -> {P, C3};
       false ->
         { filename:join (lists:concat ([RootDir,
