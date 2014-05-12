@@ -1,3 +1,8 @@
+Version 0.5.2
+  * add some extra timeouts
+  * fix dialyzer errors
+  * better code coverage
+
 Version 0.5.1
   * rrdcached needs to keytake for pidfile
 
