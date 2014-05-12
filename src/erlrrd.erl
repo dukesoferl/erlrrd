@@ -257,6 +257,7 @@ pwd        ()     ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Gen server interface poo
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%
 
 %% @hidden
 init([]) ->
@@ -275,18 +276,12 @@ init([]) ->
       undefined -> "rrdtool -"
     end,
 
-%  PrivDir =
-%    filename:join ([filename:dirname(code:which(?MODULE)),"..","priv"]),
-%  ExtCmd =
-%    filename:join([PrivDir, "killable"]),
-  Cmd = RRDToolCmd, %lists:concat([ExtCmd," ",RRDToolCmd]),
+  Cmd = RRDToolCmd,
 
-  Timeout =
-    case application:get_env(erlrrd, timeout) of
-      { ok, T } -> T;
-      undefined -> 3000
-    end,
+  Timeout = timeout (),
+
   process_flag(trap_exit, true),
+
   Port = erlang:open_port(
     {spawn, Cmd},
     [ {line, 10000}, eof, exit_status, stream,
@@ -295,14 +290,6 @@ init([]) ->
   ),
 
   {ok, #state2 {port = Port, timeout = Timeout} }.
-%  case collect_response(Port, Timeout) of
-%    { response, Response } ->
-%      {ok, #state2{port = Port, timeout = Timeout, kill_command = Response}};
-%    { error, timeout } ->
-%      {stop, port_timeout};
-%    { error, Error } ->
-%      {stop, { error, Error  }}
-%  end.
 
 %% handle_call
 %% @hidden
@@ -365,14 +352,27 @@ code_change(_OldVsn, State, _Extra) ->
 % Private poo
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+timeout () ->
+  case application:get_env(erlrrd, timeout) of
+    { ok, T } -> T;
+    undefined -> 3000
+  end.
+
+do_timeout () ->
+  case application:get_env(erlrrd, do_timeout) of
+    { ok, T } -> T;
+    undefined -> 3000
+  end.
+
 do(Command, Args) ->
+  Timeout = do_timeout(),
   case has_newline(Args) of
     true  -> { error, "No newlines" };
     false ->
-      case gen_server:call (?MODULE, { do, Command, Args } ) of
+      case gen_server:call (?MODULE, { do, Command, Args }, Timeout) of
         retry ->
           % attempt to retry once
-          gen_server:call (?MODULE, { do, Command, Args } );
+          gen_server:call (?MODULE, { do, Command, Args }, Timeout);
         R -> R
       end
   end.
@@ -534,7 +534,7 @@ start_link_test_() ->
 
 start_stop_test_() ->
   test_start_stop_(
-    fun()  -> ok = start() end,
+    fun()  -> [ok,ok] = start() end,
     fun(_) -> ok = stop()  end,
     "start/0 stop/0"
   ).
@@ -562,7 +562,7 @@ start_sup2_test_() ->
 
 start_app_test_() ->
   test_start_stop_(
-    fun()  -> ok = erlrrd_app:start() end,
+    fun()  -> [ok,ok] = erlrrd_app:start() end,
     fun(_) -> ok = erlrrd_app:stop()  end,
     "app:start/0 app:stop/0"
   ).
@@ -725,7 +725,6 @@ remote_cmds_test_() ->
         % pwd
         { "pwd1", fun() ->
           { ok, Cwd } = erlrrd:pwd(),
-%          io:format (user, "remote_cmds_test_ : pwd1 : ~p~n", [Cwd]),
           "tinue./" ++ _  = lists:reverse(Cwd)
         end},
         { "mkdir", fun() -> erlrrd:mkdir(Dir) end },
@@ -734,7 +733,6 @@ remote_cmds_test_() ->
         { "pwd2",
           fun() ->
             { ok, Cwd } = erlrrd:pwd(),
-%            io:format (user, "remote_cmds_test_ : pwd2 : ~p~n", [Cwd]),
             { match, _ }  = re:run (Cwd, "/.eunit/" ++ Dir ++ "$")
           end
         },
@@ -743,7 +741,6 @@ remote_cmds_test_() ->
             % relys on '.' and '..' always returning first?
             % is that a bad idea?
             { ok, List } = ls(),
-%            io:format(user,"remote_cmds_test_ : ls : ~p~n", [List]),
             ?assertEqual ( true, lists:any(fun(X) -> X =:= ["d .."] end, List))
           end },
         fun() -> commas_are_cool end

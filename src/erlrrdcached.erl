@@ -24,9 +24,11 @@ stringify (V) when is_integer (V) ->
 stringify (V) ->
   V.
 
+-spec process_config(['flush_on_exit' | 'foreground' | 'writes_only_in_root' | {'base_dir' | 'commands' | 'delay' | 'flush_timeout' | 'group' | 'journal_dir' | 'listen' | 'mode' | 'pidfile' | 'rrdcachedcmd' | 'write_threads' | 'write_timeout',_},...]) -> [any(),...].
 process_config (Config) ->
   process_config (Config, "", "").
 
+-spec process_config(['flush_on_exit' | 'foreground' | 'writes_only_in_root' | {'base_dir' | 'commands' | 'delay' | 'flush_timeout' | 'group' | 'journal_dir' | 'listen' | 'mode' | 'pidfile' | 'rrdcachedcmd' | 'write_threads' | 'write_timeout',_}],_,[any()]) -> [any(),...].
 process_config ([],Command, Args) ->
   [Command | Args];
 process_config ([{listen,V}|Rest], Command, Args) ->
@@ -77,10 +79,20 @@ alive () ->
 ping () ->
   gen_server:cast (?MODULE, ping).
 
+default_socket (RootDir) ->
+  filename:join (
+    lists:append ([RootDir,
+                   [lists:concat(["rrdcached-",os:getpid(),".sock"])]])).
+
+default_pid (RootDir) ->
+  filename:join (
+    lists:append ([RootDir,
+                   [lists:concat(["rrdcached-",os:getpid(),".pid"])]])).
+
 init (Config0) ->
   process_flag(trap_exit, true),
   PrivDir = filename:join ([filename:dirname(code:which(?MODULE)),"..","priv"]),
-  ExtCmd = filename:join([PrivDir, "killable "]),
+  ExtCmd = filename:join ([PrivDir, "killable "]),
 
   { RootDir, Config1 } =
     case lists:keytake (root_dir, 1, Config0) of
@@ -91,21 +103,13 @@ init (Config0) ->
   { ListenFile, Config2 } =
     case lists:keytake (listen, 1, Config1) of
       {value, {listen, L}, C2} -> {L, C2};
-      false ->
-        { filename:join (lists:concat ([RootDir,
-              [lists:concat(["rrdcached-",os:getpid(),".sock"])]])),
-          Config1
-        }
+      false -> { default_socket (RootDir), Config1 }
     end,
 
   { PidFile, Config3 } =
     case lists:keytake (pidfile, 1, Config2) of
       {value, {pidfile, P}, C3} -> {P, C3};
-      false ->
-        { filename:join (lists:concat ([RootDir,
-              [lists:concat(["rrdcached-",os:getpid(),".pid"])]])),
-          Config2
-        }
+      false -> { default_pid (RootDir), Config2 }
     end,
 
   Args =
@@ -134,6 +138,9 @@ handle_cast (ping, State = #state {port = Port}) ->
 handle_cast (_Request, State) ->
   { noreply, State }.
 
+handle_info ({Port, {data, {eol, "Received FLUSHALL"}}},
+             #state{port = Port} = State) ->
+  { noreply, State };
 handle_info({'EXIT', Port, Reason}, #state{port = Port} = State) ->
   { stop, {port_terminated, Reason}, State };
 handle_info (_Request, State) ->
@@ -149,3 +156,32 @@ terminate(_Reason, #state{port = Port, pid_file = PidFile} = _State) ->
 
 code_change (_OldVsn, State, _Extra) ->
   { ok, State }.
+
+
+%%====================================================================
+%% Test functions
+%%====================================================================
+-ifdef (TEST).
+-include_lib ("eunit/include/eunit.hrl").
+process_config_test_ () ->
+  [
+    ?_assertEqual (E, process_config (C))
+    || {E, C}
+    <- [
+      { [""," -l ", "127.0.0.1"], [{listen, "127.0.0.1"}] },
+      { [""," -s ", "apache"],    [{group, "apache"}] },
+      { [""," -m ", "0700" ],     [{mode, "0700"}] },
+      { [""," -P ", "BATCH" ],    [{commands, "BATCH"}] },
+      { [""," -w ", "1000" ],     [{write_timeout, 1000}] },
+      { [""," -z ", "1000" ],     [{delay, 1000}] },
+      { [""," -f ", "1000" ],     [{flush_timeout, 1000}] },
+      { [""," -t ", "10" ],       [{write_threads, 10}] },
+      { [""," -j ", "/tmp" ],     [{journal_dir, "/tmp"}] },
+      { [""," -F "],              [flush_on_exit] },
+      { [""," -b ", "/tmp" ],     [{base_dir, "/tmp"}] },
+      { [""," -B "],              [writes_only_in_root] },
+      { ["other"],                [{rrdcachedcmd, "other"}] }
+    ]
+  ].
+
+-endif.

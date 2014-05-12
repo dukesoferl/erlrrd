@@ -1,12 +1,13 @@
 {application, erlrrd,
  [{description, "rrdtool binding for erlang. [ via an erlang Port. ]"},
-  {vsn, "0.5.1"},
+  {vsn, "0.5.2"},
   {modules, []},
   {registered, [erlrrd]},
   {mod, {erlrrd_app, []}},
   {env,
    [
-     { timeout, 30000 },
+     { timeout, 30000 },     % port timeout
+     { do_timeout, 30000 },  % gen_server:call timeout
      { rrdtoolcmd, "rrdtool -"},
      % enable rrdcached with the given timeouts
      { cache,
