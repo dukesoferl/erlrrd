@@ -1,6 +1,6 @@
 {application, erlrrd,
  [{description, "rrdtool binding for erlang. [ via an erlang Port. ]"},
-  {vsn, "0.5.2"},
+  {vsn, "0.6.0"},
   {modules, []},
   {registered, [erlrrd]},
   {mod, {erlrrd_app, []}},
@@ -8,12 +8,7 @@
    [
      { timeout, 30000 },     % port timeout
      { do_timeout, 30000 },  % gen_server:call timeout
-     { rrdtoolcmd, "rrdtool -"},
-     % enable rrdcached with the given timeouts
-     { cache,
-       [ { write_timeout, 3600 },
-         { flush_timeout, 7200 }
-       ]
-     }
-  ]},
+     { rrdtoolcmd, "rrdtool -"}
+   ]
+  },
   {applications, [kernel, stdlib]}]}.

@@ -1,3 +1,7 @@
+Version 0.6.0
+  * no longer automatically start the daemon, instead provide a way to connect
+  to it only
+
 Version 0.5.2
   * add some extra timeouts
   * fix dialyzer errors

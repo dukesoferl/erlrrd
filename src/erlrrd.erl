@@ -264,10 +264,10 @@ init([]) ->
   % if a cache is defined, we'll want to set the environment variable
   % which allows the rrdtool port command to talk to it
   Env =
-    case application:get_env (erlrrd, cache) of
+    case application:get_env (erlrrd, rrddaemon) of
       undefined -> [];
-      {ok, _} ->
-        [ {"RRDCACHED_ADDRESS",erlrrdcached:listen_file ()} ]
+      {ok, Daemon} ->
+        [ {"RRDCACHED_ADDRESS", Daemon} ]
     end,
 
   RRDToolCmd =
